@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <title>Places Searchbox</title>
+    <style>
+       #map {
+         width: 1200px;
+         height: 600px;
+         left: 0;
+         position: 0;
+         top: 0;
+         background-color: grey;
+         margin-top: 7.5px;
+         border: 5px solid black;
+      }
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #7f86e8;
+      }
+      #mainTitle
+      {
+        font-size: 32px;
+        font-weight: bold;
+      }
+      #selection {
+        font-size: 18px;
+      }
+      #description {
+        font-family: Roboto;
+        font-size: 15px;
+        font-weight: 300;
+      }
+      #subtitle {
+        font-size: 26px;
+      }
+      #tutorial {
+        font-size: 14px;
+        margin-left: 100px;
+        margin-right: 100px;
+        margin-top: -30px;
+      }
+      #infowindow-content .title {
+        font-weight: bold;
+      }
+
+      #infowindow-content {
+        display: none;
+      }
+
+      #map #infowindow-content {
+        display: inline;
+      }
+
+      .pac-card {
+        margin: 10px 10px 0 0;
+        border-radius: 2px 0 0 2px;
+        box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        outline: none;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        background-color: #fff;
+        font-family: Roboto;
+
+      }
+
+      #pac-container {
+        padding-bottom: 12px;
+        margin-right: 12px;
+      }
+
+      .pac-controls {
+        display: inline-block;
+        padding: 5px 11px;
+      }
+
+      .pac-controls label {
+        font-family: Roboto;
+        font-size: 20px;
+        font-weight: 300;
+      }
+
+      #pac-input {
+        background-color: #fff;
+        font-family: Roboto;
+        font-size: 15px;
+        font-weight: 300;
+        margin-left: 12px;
+        padding: 0 11px 0 13px;
+        text-overflow: ellipsis;
+        width: 400px;
+        height: 30px;
+        margin-top: 5px;
+      }
+
+      #pac-input:focus {
+        border-color: #4d90fe;
+      }
+
+      #title {
+        color: #fff;
+        background-color: #4d90fe;
+        font-size: 25px;
+        font-weight: 500;
+        padding: 6px 12px;
+      }
+      #target {
+        width: 345px;
+      }
+    </style>
+  </head>
+  <body>
+    <center> <!--centers the map and other divs -->
+    <div id="mainTitle">MAP CREATOR</div>
+    <div id="selection">
+    <form> <!--User selects what icon to use and place -->
+     Select an icon to use: <br>
+     <select id="select_icon" style="font-size: 16px;">
+       <option value="bank.png">Bank</option>
+       <option value="building.png">Building</option>
+       <option value="hospital.png">Hospital</option>
+       <option value="house.png">House</option>
+       <option value="museum.png">Museum</option>
+       <option value="nature.png">Nature</option>
+       <option value="school.png">School</option>
+       <option value="store.png">Store</option>
+     </select>
+    </form>
+</div>
+    <input id="pac-input" class="controls" type="text" placeholder="Type in a location here..."> <!--search box input -->
+    <div id="map"></div>
+    <script>
+      function initMap() {  //map function
+        var map = new google.maps.Map(document.getElementById('map'), { //base properties of map
+          center: {lat: 43.667946, lng: -79.826583},
+          zoom: 13,
+          mapTypeId: 'roadmap',
+        });
+
+        var trafficLayer = new google.maps.TrafficLayer(); //layer showing traffic
+        trafficLayer.setMap(map);
+
+        var transitLayer = new google.maps.TransitLayer(); //layer showing transit
+        transitLayer.setMap(map);
+
+        var bikeLayer = new google.maps.BicyclingLayer(); //layer showing bicycle lanes/paths
+        bikeLayer.setMap(map);
+
+        var drawingManager = new google.maps.drawing.DrawingManager({ //drawing tool setup
+          drawingMode: google.maps.drawing.OverlayType.MARKER,
+          drawingControl: true,
+          drawingControlOptions: {
+            position: google.maps.ControlPosition.BOTTOM_CENTER,
+            drawingModes: ['polyline','polygon', 'rectangle', 'marker']
+          }
+        });
+        function place_marker(location){ //function for when user places marker
+          var emoji = document.getElementById('select_icon').value;
+          var marker = new google.maps.Marker({ //properties of marker placed
+          position: location,
+          map: map,
+          icon: emoji
+        });
+        }
+
+        map.addListener('click', function(e) { //listen for when user clicks and run place_marker to place a marker
+          var location = e.latLng;
+          place_marker(location);
+        });
+
+        drawingManager.setMap(map); //sets up drawing tools
+
+        // Create the search box and link it to the UI element.
+        var input = document.getElementById('pac-input');
+        var searchBox = new google.maps.places.SearchBox(input); //search box initialization
+        map.controls[google.maps.ControlPosition.TOP_CENTER].push(input);
+
+        // Bias the SearchBox results towards current map's viewport.
+        map.addListener('bounds_changed', function() { //find where search input is
+          searchBox.setBounds(map.getBounds());
+        });
+
+        var markers = [];
+
+        searchBox.addListener('places_changed', function() { //listens for when user clicks autocomplete in search box
+          var places = searchBox.getPlaces();
+
+          if (places.length == 0) {
+            return;
+          }
+
+
+          markers.forEach(function(marker) { //erases old markers
+            marker.setMap(null);
+          });
+          markers = [];
+
+          // For each place, get the icon, name and location.
+          var bounds = new google.maps.LatLngBounds();
+          places.forEach(function(place) {
+            if (!place.geometry) {
+              console.log("Returned place contains no geometry");
+              return;
+            }
+            var icon = {
+              url: place.icon,
+              size: new google.maps.Size(71, 71),
+              origin: new google.maps.Point(0, 0),
+              anchor: new google.maps.Point(17, 34),
+              scaledSize: new google.maps.Size(25, 25)
+            };
+
+            // Create a marker for each place.
+            markers.push(new google.maps.Marker({
+              map: map,
+              icon: icon,
+              title: place.name,
+              position: place.geometry.location
+            }));
+
+            if (place.geometry.viewport) { //go to viewport
+              // Only geocodes have viewport.
+              bounds.union(place.geometry.viewport);
+            } else {
+              bounds.extend(place.geometry.location);
+            }
+          });
+          map.fitBounds(bounds);
+        });
+        if(navigator.geolocation) { //searches for position of user
+              navigator.geolocation.watchPosition(set_my_position);
+        }
+        else {
+              alert("Geolocation doesn't work in your browser");
+        }
+      }
+      function set_my_position (position){ //shows user's position
+        var emoji = "user.png"
+        var pos = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+        var marker = new google.maps.Marker({
+          position: pos,
+          map: map,
+          icon: emoji
+      });
+    }
+    </script>
+    <div id="subtitle"><h3>Instructions</h3></div>
+    <div id="tutorial"><p> Use the various tools located at the top to draw custom shapes on the map, and use the search bar to find a specific location. Use the Icon dropdown
+      to choose which icon you're using. In order to place down emoji markers, click on the hand tool at the bottom of the map, otherwise you'll be placing markers.
+      Use the tools from the geometry tool to edit the look of the map to your liking, and use the icons to build your own city on Google Maps! If you want to go to a specific place
+      and edit that area, then use the search box at the top center of the map. Use the Satellite and Map settings at the top left to change what you're seeing.
+    </p><br></div>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDfnyvlZIDp7h0HXCnW6K9EfUa25to8mV4&libraries=drawing,places&callback=initMap"
+         async defer></script> <!--links to GMaps API -->
+       </center>
+  </body>
+</html>
